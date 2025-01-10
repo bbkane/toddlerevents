@@ -86,7 +86,7 @@ func NewEvent(item *gofeed.Item) Event {
 
 }
 
-func main() {
+func oldmain() {
 	// curl 'https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13' > tmp_data.rss
 	file, _ := os.Open("tmp_data.rss")
 	defer file.Close()
@@ -102,7 +102,7 @@ func main() {
 
 }
 
-func gptmain() {
+func main() {
 	events := []Event{
 		{
 			Title:       "Morning Yoga",
@@ -135,10 +135,10 @@ func gptmain() {
 
 func GenerateMarkdown(w io.Writer, events []Event) {
 	// Group events by date, then by city
-	groupedByDate := make(map[string]map[string][]Event)
+	groupedByDate := make(map[time.Time]map[string][]Event)
 
 	for _, event := range events {
-		dateKey := event.StartTime.Format("Mon 2006-01-02")
+		dateKey := time.Date(event.StartTime.Year(), event.StartTime.Month(), event.StartTime.Day(), 0, 0, 0, 0, event.StartTime.Location())
 		if _, exists := groupedByDate[dateKey]; !exists {
 			groupedByDate[dateKey] = make(map[string][]Event)
 		}
@@ -146,14 +146,16 @@ func GenerateMarkdown(w io.Writer, events []Event) {
 	}
 
 	// Sort dates for consistent output
-	sortedDates := make([]string, 0, len(groupedByDate))
+	sortedDates := make([]time.Time, 0, len(groupedByDate))
 	for date := range groupedByDate {
 		sortedDates = append(sortedDates, date)
 	}
-	sort.Strings(sortedDates)
+	sort.Slice(sortedDates, func(i, j int) bool {
+		return sortedDates[i].Before(sortedDates[j])
+	})
 
 	for _, date := range sortedDates {
-		fmt.Fprintf(w, "# %s\n\n", date)
+		fmt.Fprintf(w, "# %s\n\n", date.Format("Mon 2006-01-02"))
 		cities := groupedByDate[date]
 
 		// Sort cities for consistent output
