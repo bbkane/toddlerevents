@@ -3,7 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -12,7 +14,7 @@ import (
 
 type Event struct {
 	Title       string
-	Descripton  string
+	Description string
 	Link        string
 	StartTime   time.Time
 	EndTime     time.Time
@@ -40,7 +42,7 @@ func parseTime(bc map[string][]ext.Extension) (time.Time, error) {
 func NewEvent(item *gofeed.Item) Event {
 	event := Event{
 		Title:       item.Title,
-		Descripton:  item.Description,
+		Description: item.Description,
 		Link:        item.Link,
 		StartTime:   time.Time{},
 		EndTime:     time.Time{},
@@ -96,6 +98,89 @@ func main() {
 		events = append(events, NewEvent(item))
 	}
 
-	fmt.Println(events)
+	GenerateMarkdown(os.Stdout, events)
 
+}
+
+func gptmain() {
+	events := []Event{
+		{
+			Title:       "Morning Yoga",
+			Description: "Relaxing yoga session.",
+			Link:        "http://example.com/yoga",
+			StartTime:   time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
+			EndTime:     time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
+			City:        "Half Moon Bay",
+		},
+		{
+			Title:       "Evening Surf",
+			Description: "Surfing with friends.",
+			Link:        "http://example.com/surf",
+			StartTime:   time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
+			EndTime:     time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
+			City:        "Half Moon Bay",
+		},
+		{
+			Title:       "Cooking Class",
+			Description: "Learn to cook Italian dishes.",
+			Link:        "http://example.com/cooking",
+			StartTime:   time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
+			EndTime:     time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
+			City:        "San Francisco",
+		},
+	}
+
+	GenerateMarkdown(os.Stdout, events)
+}
+
+func GenerateMarkdown(w io.Writer, events []Event) {
+	// Group events by date, then by city
+	groupedByDate := make(map[string]map[string][]Event)
+
+	for _, event := range events {
+		dateKey := event.StartTime.Format("Mon 2006-01-02")
+		if _, exists := groupedByDate[dateKey]; !exists {
+			groupedByDate[dateKey] = make(map[string][]Event)
+		}
+		groupedByDate[dateKey][event.City] = append(groupedByDate[dateKey][event.City], event)
+	}
+
+	// Sort dates for consistent output
+	sortedDates := make([]string, 0, len(groupedByDate))
+	for date := range groupedByDate {
+		sortedDates = append(sortedDates, date)
+	}
+	sort.Strings(sortedDates)
+
+	for _, date := range sortedDates {
+		fmt.Fprintf(w, "# %s\n\n", date)
+		cities := groupedByDate[date]
+
+		// Sort cities for consistent output
+		sortedCities := make([]string, 0, len(cities))
+		for city := range cities {
+			sortedCities = append(sortedCities, city)
+		}
+		sort.Strings(sortedCities)
+
+		for _, city := range sortedCities {
+			fmt.Fprintf(w, "## %s\n\n", city)
+			events := cities[city]
+
+			// Sort events by start time
+			sort.Slice(events, func(i, j int) bool {
+				return events[i].StartTime.Before(events[j].StartTime)
+			})
+
+			for _, event := range events {
+				fmt.Fprintf(w, "---\n\n")
+				fmt.Fprintf(w, "%s - %s [%s](%s)\n\n",
+					event.StartTime.Format("15:04"),
+					event.EndTime.Format("15:04"),
+					event.Title,
+					event.Link)
+				fmt.Fprintf(w, "%s\n\n", event.Description)
+			}
+		}
+	}
 }
