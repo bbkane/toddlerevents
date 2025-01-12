@@ -107,6 +107,11 @@ func main() {
 	logLevelStr := os.Getenv("toddlerevents_LOG_LEVEL")
 	logLevel := logLevels[logLevelStr]
 
+	readmePath := os.Getenv("toddlerevents_README_PATH")
+	if readmePath == "" {
+		readmePath = "tmp.md"
+	}
+
 	slog.SetDefault(
 		slog.New(
 			slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -115,7 +120,7 @@ func main() {
 		),
 	)
 
-	const usage = "Usage: toddlerevents [download|write]"
+	const usage = "Usage: toddlerevents_LOG_LEVEL=INFO toddlerevents_README_PATH=tmp.md [download|write]"
 
 	if len(os.Args) != 2 {
 		fmt.Println(usage)
@@ -196,11 +201,10 @@ func main() {
 				}
 			}
 		}
-		const readmeFilePath = "tmp.md"
-		readmeFile, err := os.Create(readmeFilePath)
+		readmeFile, err := os.Create(readmePath)
 		if err != nil {
 			slog.Error("could not create README",
-				"readmeFilePath", readmeFilePath,
+				"readmeFilePath", readmePath,
 				"err", err.Error(),
 			)
 			os.Exit(1)
