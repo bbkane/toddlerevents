@@ -115,7 +115,9 @@ func main() {
 	slog.SetDefault(
 		slog.New(
 			slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-				Level: logLevel,
+				Level:       logLevel,
+				AddSource:   false,
+				ReplaceAttr: nil,
 			}),
 		),
 	)
