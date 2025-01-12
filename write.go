@@ -21,10 +21,22 @@ type Event struct {
 	EndTimeLocal   time.Time
 	City           string
 	ParseErrors    []error
+	GUID           string
+}
+
+func filter(event Event) bool {
+
+	// party on the weekends
+	if event.StartTimeLocal.Weekday() == time.Saturday || event.StartTimeLocal.Weekday() == time.Sunday {
+		return true
+	}
+
+	// party after work
+	return event.StartTimeLocal.Hour() >= 17
+
 }
 
 func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
-
 	startDateList, exists := bc[key]
 	if !exists {
 		return time.Time{}, fmt.Errorf("could not find %v", key)
@@ -49,6 +61,7 @@ func NewEvent(item *gofeed.Item) Event {
 		EndTimeLocal:   time.Time{},
 		City:           "",
 		ParseErrors:    nil,
+		GUID:           item.GUID,
 	}
 	bc, exists := item.Extensions["bc"]
 	if !exists {

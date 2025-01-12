@@ -17,28 +17,39 @@ type downloadFileArgs struct {
 	filePath string
 }
 
+// Turn a hardcoded list of feeds into a list of multiple pages for the correct dates
 func generateDownloadFileArgs(now time.Time) []downloadFileArgs {
 	end := now.AddDate(0, 0, 10)
 
 	d := []downloadFileArgs{
 		{
-			url:      "https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13",
-			filePath: "tmp_data.rss",
+			url: "https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13",
+			// small hack - put the unique part of the feed here and we'll format it with the page namber later
+			filePath: "smcl",
 		},
 	}
 
-	for i := range d {
-		u, err := url.Parse(d[i].url)
+	var ret []downloadFileArgs
+	for _, e := range d {
+		parsedURL, err := url.Parse(e.url)
 		if err != nil {
 			panic(err)
 		}
-		q := u.Query()
+		q := parsedURL.Query()
 		q.Set("startDate", now.Format("2006-01-02"))
 		q.Set("endDate", end.Format("2006-01-02"))
-		u.RawQuery = q.Encode()
-		d[i].url = u.String()
+		// get 5 pages
+		for i := 1; i <= 5; i++ {
+			q.Set("page", fmt.Sprintf("%d", i))
+			parsedURL.RawQuery = q.Encode()
+			u := parsedURL.String()
+			ret = append(ret, downloadFileArgs{
+				url:      u,
+				filePath: fmt.Sprintf("tmp_rss_%s_%d.rss", e.filePath, i),
+			})
+		}
 	}
-	return d
+	return ret
 }
 
 func downloadFile(d downloadFileArgs) error {
@@ -68,6 +79,26 @@ func downloadFile(d downloadFileArgs) error {
 }
 
 func main() {
+
+	logLevels := map[string]slog.Level{
+		"DEBUG": slog.LevelDebug,
+		"INFO":  slog.LevelInfo,
+		"WARN":  slog.LevelWarn,
+		"ERROR": slog.LevelError,
+	}
+
+	// Due to Go's magic empty type behavior, if this isn't set, or if it's set to an empty string, the log will default to 0, corrrsponding to slog.LevelInfo
+	logLevelStr := os.Getenv("toddlerevents_LOG_LEVEL")
+	logLevel := logLevels[logLevelStr]
+
+	slog.SetDefault(
+		slog.New(
+			slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				Level: logLevel,
+			}),
+		),
+	)
+
 	const usage = "Usage: toddlerevents [download|write]"
 
 	// curl 'https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13' > tmp_data.rss
@@ -96,18 +127,70 @@ func main() {
 		}
 
 	} else if os.Args[1] == "write" {
-		file, _ := os.Open("tmp_data.rss")
-		defer file.Close()
-		fp := gofeed.NewParser()
-		feed, _ := fp.Parse(file)
-
 		events := []Event{}
-		for _, item := range feed.Items {
-			event := NewEvent(item)
-			events = append(events, event)
-		}
+		eventCount := make(map[string]bool)
+		for _, d := range downloadFileArgs {
+			file, err := os.Open(d.filePath)
+			if err != nil {
+				slog.Error("could not open file",
+					"file_path", d.filePath,
+					"err", err.Error(),
+				)
+				continue
+			}
+			parser := gofeed.NewParser()
+			feed, err := parser.Parse(file)
+			if err != nil {
+				slog.Error("could not parse file",
+					"file_path", d.filePath,
+					"err", err.Error(),
+				)
+			}
+			file.Close()
 
-		generateMarkdown(os.Stdout, events)
+			for _, item := range feed.Items {
+				event := NewEvent(item)
+
+				if eventCount[event.GUID] {
+					slog.Debug("skipping duplicate event",
+						"title", event.Title,
+						"city", event.City,
+						"startTimeLocal", event.StartTimeLocal.Format("Mon 2006-01-02 15:04"),
+					)
+					continue
+				} else {
+					eventCount[event.GUID] = true
+				}
+
+				for _, err := range event.ParseErrors {
+					slog.Error("parse error",
+						"title", event.Title,
+						"city", event.City,
+						"err", err.Error(),
+					)
+				}
+				if filter(event) {
+					events = append(events, event)
+				} else {
+					slog.Debug("filtering out event",
+						"title", event.Title,
+						"city", event.City,
+						"startTimeLocal", event.StartTimeLocal.Format("Mon 2006-01-02 15:04"),
+					)
+				}
+			}
+		}
+		const readmeFilePath = "tmp.md"
+		readmeFile, err := os.Create(readmeFilePath)
+		if err != nil {
+			slog.Error("could not create README",
+				"readmeFilePath", readmeFilePath,
+				"err", err.Error(),
+			)
+			os.Exit(1)
+		}
+		defer readmeFile.Close()
+		generateMarkdown(readmeFile, events)
 	} else {
 		fmt.Println(usage)
 		os.Exit(1)
