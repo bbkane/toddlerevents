@@ -37,6 +37,10 @@ func filter(event Event) bool {
 }
 
 func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
+
+	// TODO: use start_date instead of start_date_local to avoid errors like the following:
+	// time=2025-01-11T20:17:44.103-08:00 level=ERROR msg="parse error" title="Closure: Martin Luther King, Jr. Day" city="" err="Could not parse end_date: Could not parse \"end_date_local\": \"2025-01-20\": parsing time \"2025-01-20\" as \"2006-01-02T15:04\": cannot parse \"\" as \"T\""
+
 	startDateList, exists := bc[key]
 	if !exists {
 		return time.Time{}, fmt.Errorf("could not find %v", key)
@@ -47,7 +51,7 @@ func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 	date := startDateList[0].Value
 	sd, err := time.Parse("2006-01-02T15:04", date)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Could not parse %v: %w", key, err)
+		return time.Time{}, fmt.Errorf("Could not parse %#v: %#v: %w", key, date, err)
 	}
 	return sd, nil
 }
