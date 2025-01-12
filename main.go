@@ -13,41 +13,41 @@ import (
 )
 
 type Event struct {
-	Title       string
-	Description string
-	Link        string
-	StartTime   time.Time
-	EndTime     time.Time
-	City        string
-	ParseErrors []error
+	Title          string
+	Description    string
+	Link           string
+	StartTimeLocal time.Time
+	EndTimeLocal   time.Time
+	City           string
+	ParseErrors    []error
 }
 
-func parseTime(bc map[string][]ext.Extension) (time.Time, error) {
+func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 
-	startDateList, exists := bc["start_date"]
+	startDateList, exists := bc[key]
 	if !exists {
-		return time.Time{}, errors.New("could not find start_date")
+		return time.Time{}, fmt.Errorf("could not find %v", key)
 	}
 	if len(startDateList) != 1 {
-		return time.Time{}, errors.New("not exactly one start_date")
+		return time.Time{}, fmt.Errorf("not exactly one instance of %v", key)
 	}
 	date := startDateList[0].Value
-	sd, err := time.Parse(time.RFC3339, date)
+	sd, err := time.Parse("2006-01-02T15:04", date)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Could not parse start_date: %w", err)
+		return time.Time{}, fmt.Errorf("Could not parse %v: %w", key, err)
 	}
 	return sd, nil
 }
 
 func NewEvent(item *gofeed.Item) Event {
 	event := Event{
-		Title:       item.Title,
-		Description: item.Description,
-		Link:        item.Link,
-		StartTime:   time.Time{},
-		EndTime:     time.Time{},
-		City:        "",
-		ParseErrors: nil,
+		Title:          item.Title,
+		Description:    item.Description,
+		Link:           item.Link,
+		StartTimeLocal: time.Time{},
+		EndTimeLocal:   time.Time{},
+		City:           "",
+		ParseErrors:    nil,
 	}
 	bc, exists := item.Extensions["bc"]
 	if !exists {
@@ -56,17 +56,17 @@ func NewEvent(item *gofeed.Item) Event {
 		return event
 	}
 
-	startTime, err := parseTime(bc)
+	startTimeLocal, err := parseTime(bc, "start_date_local")
 	if err != nil {
 		event.ParseErrors = append(event.ParseErrors, fmt.Errorf("could not parse start_date: %w", err))
 	}
-	event.StartTime = startTime
+	event.StartTimeLocal = startTimeLocal
 
-	endTime, err := parseTime(bc)
+	endTimeLocal, err := parseTime(bc, "end_date_local")
 	if err != nil {
 		event.ParseErrors = append(event.ParseErrors, fmt.Errorf("Could not parse end_date: %w", err))
 	}
-	event.EndTime = endTime
+	event.EndTimeLocal = endTimeLocal
 
 	// what I wish I could do...
 	// city := bc["locationList"][0].Children["city"][0].Value
@@ -86,7 +86,7 @@ func NewEvent(item *gofeed.Item) Event {
 
 }
 
-func oldmain() {
+func main() {
 	// curl 'https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13' > tmp_data.rss
 	file, _ := os.Open("tmp_data.rss")
 	defer file.Close()
@@ -102,31 +102,31 @@ func oldmain() {
 
 }
 
-func main() {
+func main2() {
 	events := []Event{
 		{
-			Title:       "Morning Yoga",
-			Description: "Relaxing yoga session.",
-			Link:        "http://example.com/yoga",
-			StartTime:   time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
-			EndTime:     time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
-			City:        "Half Moon Bay",
+			Title:          "Morning Yoga",
+			Description:    "Relaxing yoga session.",
+			Link:           "http://example.com/yoga",
+			StartTimeLocal: time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
+			EndTimeLocal:   time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
+			City:           "Half Moon Bay",
 		},
 		{
-			Title:       "Evening Surf",
-			Description: "Surfing with friends.",
-			Link:        "http://example.com/surf",
-			StartTime:   time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
-			EndTime:     time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
-			City:        "Half Moon Bay",
+			Title:          "Evening Surf",
+			Description:    "Surfing with friends.",
+			Link:           "http://example.com/surf",
+			StartTimeLocal: time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
+			EndTimeLocal:   time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
+			City:           "Half Moon Bay",
 		},
 		{
-			Title:       "Cooking Class",
-			Description: "Learn to cook Italian dishes.",
-			Link:        "http://example.com/cooking",
-			StartTime:   time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
-			EndTime:     time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
-			City:        "San Francisco",
+			Title:          "Cooking Class",
+			Description:    "Learn to cook Italian dishes.",
+			Link:           "http://example.com/cooking",
+			StartTimeLocal: time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
+			EndTimeLocal:   time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
+			City:           "San Francisco",
 		},
 	}
 
@@ -138,7 +138,7 @@ func GenerateMarkdown(w io.Writer, events []Event) {
 	groupedByDate := make(map[time.Time]map[string][]Event)
 
 	for _, event := range events {
-		dateKey := time.Date(event.StartTime.Year(), event.StartTime.Month(), event.StartTime.Day(), 0, 0, 0, 0, event.StartTime.Location())
+		dateKey := time.Date(event.StartTimeLocal.Year(), event.StartTimeLocal.Month(), event.StartTimeLocal.Day(), 0, 0, 0, 0, event.StartTimeLocal.Location())
 		if _, exists := groupedByDate[dateKey]; !exists {
 			groupedByDate[dateKey] = make(map[string][]Event)
 		}
@@ -171,14 +171,14 @@ func GenerateMarkdown(w io.Writer, events []Event) {
 
 			// Sort events by start time
 			sort.Slice(events, func(i, j int) bool {
-				return events[i].StartTime.Before(events[j].StartTime)
+				return events[i].StartTimeLocal.Before(events[j].StartTimeLocal)
 			})
 
 			for _, event := range events {
 				fmt.Fprintf(w, "---\n\n")
 				fmt.Fprintf(w, "%s - %s [%s](%s)\n\n",
-					event.StartTime.Format("15:04"),
-					event.EndTime.Format("15:04"),
+					event.StartTimeLocal.Format("15:04"),
+					event.EndTimeLocal.Format("15:04"),
 					event.Title,
 					event.Link)
 				fmt.Fprintf(w, "%s\n\n", event.Description)
