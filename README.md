@@ -1,6 +1,6 @@
 # TODOs
 
-- get it using local times
-- strip HTML from description 
+- DONE - get it using local times
+- DONE - strip HTML from description 
 - curl more things
 - post to README

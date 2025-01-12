@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"sort"
 	"time"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
 	ext "github.com/mmcdole/gofeed/extensions"
 )
@@ -42,7 +44,7 @@ func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 func NewEvent(item *gofeed.Item) Event {
 	event := Event{
 		Title:          item.Title,
-		Description:    item.Description,
+		Description:    bluemonday.StrictPolicy().Sanitize(item.Description),
 		Link:           item.Link,
 		StartTimeLocal: time.Time{},
 		EndTimeLocal:   time.Time{},
@@ -86,54 +88,7 @@ func NewEvent(item *gofeed.Item) Event {
 
 }
 
-func main() {
-	// curl 'https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13' > tmp_data.rss
-	file, _ := os.Open("tmp_data.rss")
-	defer file.Close()
-	fp := gofeed.NewParser()
-	feed, _ := fp.Parse(file)
-
-	events := []Event{}
-	for _, item := range feed.Items {
-		events = append(events, NewEvent(item))
-	}
-
-	GenerateMarkdown(os.Stdout, events)
-
-}
-
-func main2() {
-	events := []Event{
-		{
-			Title:          "Morning Yoga",
-			Description:    "Relaxing yoga session.",
-			Link:           "http://example.com/yoga",
-			StartTimeLocal: time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
-			EndTimeLocal:   time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
-			City:           "Half Moon Bay",
-		},
-		{
-			Title:          "Evening Surf",
-			Description:    "Surfing with friends.",
-			Link:           "http://example.com/surf",
-			StartTimeLocal: time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
-			EndTimeLocal:   time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
-			City:           "Half Moon Bay",
-		},
-		{
-			Title:          "Cooking Class",
-			Description:    "Learn to cook Italian dishes.",
-			Link:           "http://example.com/cooking",
-			StartTimeLocal: time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
-			EndTimeLocal:   time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
-			City:           "San Francisco",
-		},
-	}
-
-	GenerateMarkdown(os.Stdout, events)
-}
-
-func GenerateMarkdown(w io.Writer, events []Event) {
+func generateMarkdown(w io.Writer, events []Event) {
 	// Group events by date, then by city
 	groupedByDate := make(map[time.Time]map[string][]Event)
 
@@ -186,3 +141,91 @@ func GenerateMarkdown(w io.Writer, events []Event) {
 		}
 	}
 }
+
+func downloadFile(url string, w io.Writer) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func main() {
+	// curl 'https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13' > tmp_data.rss
+	if len(os.Args) != 2 {
+		fmt.Println("Usage: toddlerevents [download|write]")
+		os.Exit(1)
+	}
+
+	if os.Args[1] == "download" {
+		file, err := os.Create("tmp_data.rss")
+		if err != nil {
+			panic(err)
+		}
+
+		err = downloadFile("https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13", file)
+		if err != nil {
+			panic(err)
+		}
+		file.Close()
+
+	} else if os.Args[1] == "write" {
+		file, _ := os.Open("tmp_data.rss")
+		defer file.Close()
+		fp := gofeed.NewParser()
+		feed, _ := fp.Parse(file)
+
+		events := []Event{}
+		for _, item := range feed.Items {
+			events = append(events, NewEvent(item))
+		}
+
+		generateMarkdown(os.Stdout, events)
+	} else {
+		fmt.Println("Usage: toddlerevents [download|write]")
+		os.Exit(1)
+	}
+
+}
+
+// func main2() {
+// 	events := []Event{
+// 		{
+// 			Title:          "Morning Yoga",
+// 			Description:    "Relaxing yoga session.",
+// 			Link:           "http://example.com/yoga",
+// 			StartTimeLocal: time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
+// 			EndTimeLocal:   time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
+// 			City:           "Half Moon Bay",
+// 		},
+// 		{
+// 			Title:          "Evening Surf",
+// 			Description:    "Surfing with friends.",
+// 			Link:           "http://example.com/surf",
+// 			StartTimeLocal: time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
+// 			EndTimeLocal:   time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
+// 			City:           "Half Moon Bay",
+// 		},
+// 		{
+// 			Title:          "Cooking Class",
+// 			Description:    "Learn to cook Italian dishes.",
+// 			Link:           "http://example.com/cooking",
+// 			StartTimeLocal: time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
+// 			EndTimeLocal:   time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
+// 			City:           "San Francisco",
+// 		},
+// 	}
+
+// 	GenerateMarkdown(os.Stdout, events)
+// }
