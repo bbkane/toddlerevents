@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -44,7 +47,7 @@ func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 func NewEvent(item *gofeed.Item) Event {
 	event := Event{
 		Title:          item.Title,
-		Description:    bluemonday.StrictPolicy().Sanitize(item.Description),
+		Description:    strings.TrimSpace(bluemonday.StrictPolicy().Sanitize(item.Description)),
 		Link:           item.Link,
 		StartTimeLocal: time.Time{},
 		EndTimeLocal:   time.Time{},
@@ -129,8 +132,10 @@ func generateMarkdown(w io.Writer, events []Event) {
 				return events[i].StartTimeLocal.Before(events[j].StartTimeLocal)
 			})
 
-			for _, event := range events {
-				fmt.Fprintf(w, "---\n\n")
+			for i, event := range events {
+				if i > 0 {
+					fmt.Fprintf(w, "---\n\n")
+				}
 				fmt.Fprintf(w, "%s - %s [%s](%s)\n\n",
 					event.StartTimeLocal.Format("15:04"),
 					event.EndTimeLocal.Format("15:04"),
@@ -142,8 +147,20 @@ func generateMarkdown(w io.Writer, events []Event) {
 	}
 }
 
-func downloadFile(url string, w io.Writer) error {
-	resp, err := http.Get(url)
+type downloadFileArgs struct {
+	url      string
+	filePath string
+}
+
+func downloadFile(d downloadFileArgs) error {
+
+	file, err := os.Create(d.filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	resp, err := http.Get(d.url)
 	if err != nil {
 		return err
 	}
@@ -153,12 +170,36 @@ func downloadFile(url string, w io.Writer) error {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	_, err = io.Copy(w, resp.Body)
+	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func generateDownloadFileArgs(now time.Time) []downloadFileArgs {
+	end := now.AddDate(0, 0, 10)
+
+	d := []downloadFileArgs{
+		{
+			url:      "https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13",
+			filePath: "tmp_data.rss",
+		},
+	}
+
+	for i := range d {
+		u, err := url.Parse(d[i].url)
+		if err != nil {
+			panic(err)
+		}
+		q := u.Query()
+		q.Set("startDate", now.Format("2006-01-02"))
+		q.Set("endDate", end.Format("2006-01-02"))
+		u.RawQuery = q.Encode()
+		d[i].url = u.String()
+	}
+	return d
 }
 
 func main() {
@@ -168,17 +209,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	if os.Args[1] == "download" {
-		file, err := os.Create("tmp_data.rss")
-		if err != nil {
-			panic(err)
-		}
+	now := time.Now()
+	downloadFileArgs := generateDownloadFileArgs(now)
 
-		err = downloadFile("https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13", file)
-		if err != nil {
-			panic(err)
+	if os.Args[1] == "download" {
+		for _, d := range downloadFileArgs {
+			err := downloadFile(d)
+			if err != nil {
+				slog.Error("could not download file",
+					"url", d.url,
+					"file_path", d.filePath,
+					"err", err.Error(),
+				)
+			}
+			slog.Info("downloaded file",
+				"url", d.url,
+				"file_path", d.filePath,
+			)
 		}
-		file.Close()
 
 	} else if os.Args[1] == "write" {
 		file, _ := os.Open("tmp_data.rss")
