@@ -1,6 +1,10 @@
 # toddlerevents
 
-Download and write local Bay Area toddler events to a README. This is meant for personal use, so I've hardcoded things instead of making them configurable.
+Find Bay Area toddler events (currently only from public libraries) to attend with my son that are outside of work hours. Updates https://github.com/bbkane/toddlerevents.bbkane.com each Friday and Monday.
+
+## Project Status (2025-01-24)
+
+This is "MVP" status... everythings hardcoded, there are bugs (see [issues]([url](https://github.com/bbkane/toddlerevents/issues))), and there are no tests. I plan to make it more useful to myself and others "at some point".
 
 ## Use
 
