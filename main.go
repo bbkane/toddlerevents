@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,7 +11,16 @@ import (
 	"time"
 
 	"github.com/mmcdole/gofeed"
+	"go.bbkane.com/warg"
+	"go.bbkane.com/warg/command"
+	"go.bbkane.com/warg/config/yamlreader"
+	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg/path"
+	"go.bbkane.com/warg/section"
+	"go.bbkane.com/warg/value/scalar"
 )
+
+var version string
 
 type downloadFileArgs struct {
 	url      string
@@ -19,7 +29,6 @@ type downloadFileArgs struct {
 
 // Turn a hardcoded list of feeds into a list of multiple pages for the correct dates
 func generateDownloadFileArgs(now time.Time) []downloadFileArgs {
-	end := now.AddDate(0, 0, 10)
 
 	// Find the URLs by going to URL, clicking "Options" on the top right, then "RSS Feed", then copying the URL
 	d := []downloadFileArgs{
@@ -46,6 +55,7 @@ func generateDownloadFileArgs(now time.Time) []downloadFileArgs {
 		},
 	}
 
+	end := now.AddDate(0, 0, 10)
 	var ret []downloadFileArgs
 	for _, e := range d {
 		parsedURL, err := url.Parse(e.url)
@@ -94,7 +104,51 @@ func downloadFile(d downloadFileArgs) error {
 	return nil
 }
 
+func withInitGlobalLogger(f func(cmdCtx command.Context) error) command.Action {
+	return func(cmdCtx command.Context) error {
+		logLevel := cmdCtx.Flags["--log-level"].(string)
+		slogLevel := map[string]slog.Level{
+			"DEBUG": slog.LevelDebug,
+			"INFO":  slog.LevelInfo,
+			"WARN":  slog.LevelWarn,
+			"ERROR": slog.LevelError,
+		}[logLevel]
+
+		slog.SetDefault(
+			slog.New(
+				slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+					Level:       slogLevel,
+					AddSource:   false,
+					ReplaceAttr: nil,
+				}),
+			),
+		)
+		return f(cmdCtx)
+	}
+}
+
+func withDownloadFileArgs(
+	f func(cmdCtx command.Context, ds []downloadFileArgs) error,
+) command.Action {
+	return func(cmdCtx command.Context) error {
+		urls := cmdCtx.Flags["--bibliocommons-feed-url"].([]string)
+		codes := cmdCtx.Flags["--bibliocommons-feed-code"].([]string)
+
+		if !(len(urls) == len(codes)) {
+			slog.Error(
+				"The following lengths should be equal",
+				"--bibliocommons-feed-url", len(urls),
+				"--bibliocommons-feed-code", len(codes),
+			)
+			return errors.New("non-matching flag lengths")
+		}
+		// TODO: get other args and make downloadFileArgs
+		return errors.ErrUnsupported
+	}
+}
+
 func main() {
+	// main2()
 	logLevels := map[string]slog.Level{
 		"DEBUG": slog.LevelDebug,
 		"INFO":  slog.LevelInfo,
@@ -220,33 +274,44 @@ func main() {
 
 }
 
-// func main2() {
-// 	events := []Event{
-// 		{
-// 			Title:          "Morning Yoga",
-// 			Description:    "Relaxing yoga session.",
-// 			Link:           "http://example.com/yoga",
-// 			StartTimeLocal: time.Date(2025, 1, 10, 10, 0, 0, 0, time.UTC),
-// 			EndTimeLocal:   time.Date(2025, 1, 10, 11, 0, 0, 0, time.UTC),
-// 			City:           "Half Moon Bay",
-// 		},
-// 		{
-// 			Title:          "Evening Surf",
-// 			Description:    "Surfing with friends.",
-// 			Link:           "http://example.com/surf",
-// 			StartTimeLocal: time.Date(2025, 1, 10, 14, 30, 0, 0, time.UTC),
-// 			EndTimeLocal:   time.Date(2025, 1, 10, 17, 0, 0, 0, time.UTC),
-// 			City:           "Half Moon Bay",
-// 		},
-// 		{
-// 			Title:          "Cooking Class",
-// 			Description:    "Learn to cook Italian dishes.",
-// 			Link:           "http://example.com/cooking",
-// 			StartTimeLocal: time.Date(2025, 1, 11, 9, 0, 0, 0, time.UTC),
-// 			EndTimeLocal:   time.Date(2025, 1, 11, 11, 0, 0, 0, time.UTC),
-// 			City:           "San Francisco",
-// 		},
-// 	}
+func writeCmd() command.Command {
+	return command.New(
+		"Write markdown file",
+		command.DoNothing,
+	)
+}
 
-// 	GenerateMarkdown(os.Stdout, events)
-// }
+func main2() {
+	app := warg.New(
+		"toddlerevents",
+		version,
+		section.New(
+			"Collate toddler events to take my kid to",
+			section.Command("download", downloadCmd()),
+			section.Command("write", writeCmd()),
+			section.CommandMap(warg.VersionCommandMap()),
+		),
+		warg.ConfigFlag(
+			"--config",
+			[]scalar.ScalarOpt[path.Path]{
+				scalar.Default(path.New("toddlerevents.yaml")),
+			},
+			yamlreader.New,
+			"Config filepath",
+			flag.Alias("-c"),
+		),
+		warg.GlobalFlagMap(warg.ColorFlagMap()),
+		warg.NewGlobalFlag(
+			"--log-level",
+			"log level",
+			scalar.String(
+				scalar.Choices("DEBUG", "INFO", "WARN", "ERROR"),
+				scalar.Default("INFO"),
+			),
+			flag.ConfigPath("log.level"),
+			flag.Required(),
+			flag.EnvVars("toddlerevents_LOG_LEVEL"),
+		),
+	)
+	app.MustRun()
+}
