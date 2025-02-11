@@ -3,11 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -18,6 +17,7 @@ import (
 	"go.bbkane.com/warg/path"
 	"go.bbkane.com/warg/section"
 	"go.bbkane.com/warg/value/scalar"
+	"go.bbkane.com/warg/value/slice"
 )
 
 var version string
@@ -79,31 +79,6 @@ func generateDownloadFileArgs(now time.Time) []downloadFileArgs {
 	return ret
 }
 
-func downloadFile(d downloadFileArgs) error {
-	file, err := os.Create(d.filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	resp, err := http.Get(d.url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
-	}
-
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func withInitGlobalLogger(f func(cmdCtx command.Context) error) command.Action {
 	return func(cmdCtx command.Context) error {
 		logLevel := cmdCtx.Flags["--log-level"].(string)
@@ -127,6 +102,85 @@ func withInitGlobalLogger(f func(cmdCtx command.Context) error) command.Action {
 	}
 }
 
+type buildDownloadFileArgsArgs struct {
+	urls             []string
+	codes            []string
+	pages            int
+	startDateTime    time.Time
+	filepathTemplate string
+	days             int
+}
+
+func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, error) {
+	lenURLs := len(args.urls)
+	end := args.startDateTime.AddDate(0, 0, args.days)
+	var ret []downloadFileArgs
+	errs := []error{}
+	for i := range lenURLs {
+		parsedURL, err := url.Parse(args.urls[i])
+		if err != nil {
+			errs = append(errs, err)
+		}
+		q := parsedURL.Query()
+		q.Set("startDate", args.startDateTime.Format("2006-01-02"))
+		q.Set("endDate", end.Format("2006-01-02"))
+		for j := 1; j <= args.pages; j++ {
+			q.Set("page", strconv.Itoa(j))
+			parsedURL.RawQuery = q.Encode()
+			u := parsedURL.String()
+			ret = append(ret, downloadFileArgs{
+				url:      u,
+				filePath: fmt.Sprintf(args.filepathTemplate, args.codes[i], j),
+			})
+		}
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("error parsing URLs: %w", errors.Join(errs...))
+	}
+	return ret, nil
+}
+
+func bibliocommonFlags() flag.FlagMap {
+	return flag.FlagMap{
+		"--bibliocommons-feed-url": flag.New(
+			"Feed URL",
+			slice.String(),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.feeds[].url"),
+		),
+		"--bibliocommons-feed-code": flag.New(
+			"Unique Code for a feed",
+			slice.String(),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.feeds[].code"),
+		),
+		"--bibliocommons-pages": flag.New(
+			"Number of feed pages to download",
+			scalar.Int(scalar.Default(5)),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.pages"),
+		),
+		"--bibliocommons-days": flag.New(
+			"Number of days info to download",
+			scalar.Int(scalar.Default(8)),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.days"),
+		),
+		"--bibliocommons-start-date": flag.New(
+			"Date to start downloading",
+			scalar.String(scalar.Default("today")),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.date"),
+		),
+		"--bibliocommons-filepath-template": flag.New(
+			"Filepath template to save downloaded files to",
+			scalar.String(scalar.Default("tmp_rss_%s_%d.rss")),
+			flag.Required(),
+			flag.ConfigPath("bibliocommons.filepath_template"),
+		),
+	}
+}
+
 func withDownloadFileArgs(
 	f func(cmdCtx command.Context, ds []downloadFileArgs) error,
 ) command.Action {
@@ -142,13 +196,43 @@ func withDownloadFileArgs(
 			)
 			return errors.New("non-matching flag lengths")
 		}
-		// TODO: get other args and make downloadFileArgs
-		return errors.ErrUnsupported
+		pages := cmdCtx.Flags["--bibliocommons-pages"].(int)
+		startDate := cmdCtx.Flags["--bibliocommons-start-date"].(string)
+		filepathTemplate := cmdCtx.Flags["--bibliocommons-filepath-template"].(string)
+		days := cmdCtx.Flags["--bibliocommons-days"].(int)
+		var startDateTime time.Time
+		if startDate == "today" {
+			startDateTime = time.Now()
+		} else {
+			var err error
+			startDateTime, err = time.Parse("2006-01-02", startDate)
+			if err != nil {
+				return fmt.Errorf("could not parse --bibliocommons-start-date (%s) as a date: %w", startDate, err)
+			}
+		}
+
+		args, err := buildDownloadFileArgs(buildDownloadFileArgsArgs{
+			urls:             urls,
+			codes:            codes,
+			pages:            pages,
+			startDateTime:    startDateTime,
+			filepathTemplate: filepathTemplate,
+			days:             days,
+		})
+		if err != nil {
+			return fmt.Errorf("coudl not build downloadFileArgs: %w", err)
+		}
+		return f(cmdCtx, args)
 	}
 }
 
 func main() {
 	// main2()
+	// panic("hi")
+	// TODO:
+	//   - move "write" to subcommand
+	//   - make yaml config and put in toddlerevents.bbkane.com repo
+	//   - push a new version
 	logLevels := map[string]slog.Level{
 		"DEBUG": slog.LevelDebug,
 		"INFO":  slog.LevelInfo,
@@ -306,7 +390,7 @@ func main2() {
 			"log level",
 			scalar.String(
 				scalar.Choices("DEBUG", "INFO", "WARN", "ERROR"),
-				scalar.Default("INFO"),
+				scalar.Default("DEBUG"),
 			),
 			flag.ConfigPath("log.level"),
 			flag.Required(),
