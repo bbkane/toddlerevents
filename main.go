@@ -220,15 +220,15 @@ func withDownloadFileArgs(
 			days:             days,
 		})
 		if err != nil {
-			return fmt.Errorf("coudl not build downloadFileArgs: %w", err)
+			return fmt.Errorf("could not build downloadFileArgs: %w", err)
 		}
 		return f(cmdCtx, args)
 	}
 }
 
 func main() {
-	// main2()
-	// panic("hi")
+	main2()
+	panic("hi")
 	// TODO:
 	//   - move "write" to subcommand
 	//   - make yaml config and put in toddlerevents.bbkane.com repo
