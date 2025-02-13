@@ -1,10 +1,10 @@
+bibliocommons:
+  days: 8
+  feeds:
+    - code: smcl
+      url: https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13
+  filepath_template: tmp_rss_{{ .Code }}_{{ .Number }}.rss
+  pages: 5
+  start_date: today
 log:
   level: DEBUG
-bibliocommons:
-  pages: 5
-  days: 8
-  start_date: today
-  filepath_template: "tmp_rss_{{ .Code }}_{{ .Number }}.rss"
-  feeds:
-    - url: "https://gateway.bibliocommons.com/v2/libraries/smcl/rss/events?audiences=564274cf4d0090f742000016%2C564274cf4d0090f742000011&startDate=2025-01-10&endDate=2025-01-13"
-      code: smcl
