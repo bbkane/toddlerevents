@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
+	"text/template"
 	"time"
 
 	"go.bbkane.com/warg"
@@ -49,6 +51,23 @@ type downloadFileArgs struct {
 	filePath string
 }
 
+func renderTemplate(tmplStr string, data any) (string, error) {
+	// Parse the template
+	tmpl, err := template.New("template").Parse(tmplStr)
+	if err != nil {
+		return "", err
+	}
+
+	// Render the template to a string
+	var output bytes.Buffer
+	err = tmpl.Execute(&output, data)
+	if err != nil {
+		return "", err
+	}
+
+	return output.String(), nil
+}
+
 type buildDownloadFileArgsArgs struct {
 	urls             []string
 	codes            []string
@@ -75,9 +94,20 @@ func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, 
 			q.Set("page", strconv.Itoa(j))
 			parsedURL.RawQuery = q.Encode()
 			u := parsedURL.String()
+			filePath, err := renderTemplate(
+				args.filepathTemplate,
+				map[string]any{
+					"Code":   args.codes[i],
+					"Number": j,
+				},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("Invalid filepathTemplate: %s: %w", args.filepathTemplate, err)
+			}
 			ret = append(ret, downloadFileArgs{
 				url:      u,
-				filePath: fmt.Sprintf(args.filepathTemplate, args.codes[i], j),
+				filePath: filePath,
+				// filePath: fmt.Sprintf(args.filepathTemplate, args.codes[i], j),
 			})
 		}
 	}
@@ -120,8 +150,8 @@ func bibliocommonFlags() flag.FlagMap {
 			flag.ConfigPath("bibliocommons.date"),
 		),
 		"--bibliocommons-filepath-template": flag.New(
-			"Filepath template to save downloaded files to",
-			scalar.String(scalar.Default("tmp_rss_%s_%d.rss")),
+			"Filepath template to save downloaded files to. `Code` is the string for each URL. `Number` is 1 to the number of pates",
+			scalar.String(scalar.Default("tmp_rss_{{ .Code }}_{{ .Number }}.rss")),
 			flag.Required(),
 			flag.ConfigPath("bibliocommons.filepath_template"),
 		),
