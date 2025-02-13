@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -11,6 +13,10 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
 	ext "github.com/mmcdole/gofeed/extensions"
+	"go.bbkane.com/warg/command"
+	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg/path"
+	"go.bbkane.com/warg/value/scalar"
 )
 
 type Event struct {
@@ -40,6 +46,8 @@ func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 
 	// TODO: use start_date instead of start_date_local to avoid errors like the following:
 	// time=2025-01-11T20:17:44.103-08:00 level=ERROR msg="parse error" title="Closure: Martin Luther King, Jr. Day" city="" err="Could not parse end_date: Could not parse \"end_date_local\": \"2025-01-20\": parsing time \"2025-01-20\" as \"2006-01-02T15:04\": cannot parse \"\" as \"T\""
+
+	// TODO: just use "all day" for these
 
 	startDateList, exists := bc[key]
 	if !exists {
@@ -157,4 +165,94 @@ func generateMarkdown(w io.Writer, events []Event) {
 			}
 		}
 	}
+}
+
+func writeCmd() command.Command {
+	return command.New(
+		"Write markdown file",
+		withInitGlobalLogger(withDownloadFileArgs(writeRun)),
+		command.FlagMap(bibliocommonFlags()),
+		command.NewFlag(
+			"--readme-path",
+			"Path to output README",
+			scalar.Path(
+				scalar.Default(path.New("tmp.md")),
+			),
+			flag.ConfigPath("write.readme_path"),
+			flag.EnvVars("toddlerevents_README_PATH"),
+			flag.Required(),
+		),
+	)
+}
+
+func writeRun(cmdCxt command.Context, ds []downloadFileArgs) error {
+	readmePath := cmdCxt.Flags["--readme-path"].(path.Path).MustExpand()
+
+	events := []Event{}
+	seenEvent := make(map[string]bool)
+	for _, d := range ds {
+		file, err := os.Open(d.filePath)
+		if err != nil {
+			slog.Error("could not open file",
+				"file_path", d.filePath,
+				"err", err.Error(),
+			)
+			continue
+		}
+		parser := gofeed.NewParser()
+		feed, err := parser.Parse(file)
+		if err != nil {
+			slog.Error("could not parse file",
+				"file_path", d.filePath,
+				"err", err.Error(),
+			)
+			continue
+		}
+		file.Close()
+
+		for _, item := range feed.Items {
+			event := NewEvent(item)
+
+			if seenEvent[event.GUID] {
+				slog.Debug("skipping duplicate event",
+					"title", event.Title,
+					"city", event.City,
+					"startTimeLocal", event.StartTimeLocal.Format("Mon 2006-01-02 15:04"),
+				)
+				continue
+			} else {
+				seenEvent[event.GUID] = true
+			}
+
+			// These are non-fatal errors
+			for _, err := range event.ParseErrors {
+				slog.Error("parse error",
+					"title", event.Title,
+					"city", event.City,
+					"err", err.Error(),
+				)
+			}
+			if filter(event) {
+				events = append(events, event)
+			} else {
+				slog.Debug("filtering out event",
+					"title", event.Title,
+					"city", event.City,
+					"startTimeLocal", event.StartTimeLocal.Format("Mon 2006-01-02 15:04"),
+				)
+			}
+		}
+	}
+	readmeFile, err := os.Create(readmePath)
+	if err != nil {
+		slog.Error("could not create README",
+			"readmeFilePath", readmePath,
+			"err", err.Error(),
+		)
+		os.Exit(1)
+	}
+	defer readmeFile.Close()
+	generateMarkdown(readmeFile, events)
+	slog.Info("Wrote README!", "readmePath", readmePath)
+	return nil
 }
