@@ -8,9 +8,10 @@ import (
 	"os"
 
 	"go.bbkane.com/warg/command"
+	"go.bbkane.com/warg/wargcore"
 )
 
-func downloadCmd() command.Command {
+func downloadCmd() wargcore.Command {
 	return command.New(
 		"Download RSS feeds",
 		withInitGlobalLogger(withDownloadFileArgs(downloadRun)),
@@ -18,7 +19,7 @@ func downloadCmd() command.Command {
 	)
 }
 
-func downloadRun(cmdCtx command.Context, ds []downloadFileArgs) error {
+func downloadRun(cmdCtx wargcore.Context, ds []downloadFileArgs) error {
 	for _, d := range ds {
 		err := downloadFile(d)
 		if err != nil {

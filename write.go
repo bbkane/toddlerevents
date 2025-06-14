@@ -17,6 +17,7 @@ import (
 	"go.bbkane.com/warg/flag"
 	"go.bbkane.com/warg/path"
 	"go.bbkane.com/warg/value/scalar"
+	"go.bbkane.com/warg/wargcore"
 )
 
 type Event struct {
@@ -167,7 +168,7 @@ func generateMarkdown(w io.Writer, events []Event) {
 	}
 }
 
-func writeCmd() command.Command {
+func writeCmd() wargcore.Command {
 	return command.New(
 		"Write markdown file",
 		withInitGlobalLogger(withDownloadFileArgs(writeRun)),
@@ -185,7 +186,7 @@ func writeCmd() command.Command {
 	)
 }
 
-func writeRun(cmdCxt command.Context, ds []downloadFileArgs) error {
+func writeRun(cmdCxt wargcore.Context, ds []downloadFileArgs) error {
 	readmePath := cmdCxt.Flags["--readme-path"].(path.Path).MustExpand()
 
 	events := []Event{}

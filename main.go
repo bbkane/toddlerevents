@@ -12,19 +12,19 @@ import (
 	"time"
 
 	"go.bbkane.com/warg"
-	"go.bbkane.com/warg/command"
 	"go.bbkane.com/warg/config/yamlreader"
 	"go.bbkane.com/warg/flag"
 	"go.bbkane.com/warg/path"
 	"go.bbkane.com/warg/section"
 	"go.bbkane.com/warg/value/scalar"
 	"go.bbkane.com/warg/value/slice"
+	"go.bbkane.com/warg/wargcore"
 )
 
 var version string
 
-func withInitGlobalLogger(f func(cmdCtx command.Context) error) command.Action {
-	return func(cmdCtx command.Context) error {
+func withInitGlobalLogger(f func(cmdCtx wargcore.Context) error) wargcore.Action {
+	return func(cmdCtx wargcore.Context) error {
 		logLevel := cmdCtx.Flags["--log-level"].(string)
 		slogLevel := map[string]slog.Level{
 			"DEBUG": slog.LevelDebug,
@@ -117,8 +117,8 @@ func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, 
 	return ret, nil
 }
 
-func bibliocommonFlags() flag.FlagMap {
-	return flag.FlagMap{
+func bibliocommonFlags() wargcore.FlagMap {
+	return wargcore.FlagMap{
 		"--bibliocommons-feed-url": flag.New(
 			"Feed URL",
 			slice.String(),
@@ -159,9 +159,9 @@ func bibliocommonFlags() flag.FlagMap {
 }
 
 func withDownloadFileArgs(
-	f func(cmdCtx command.Context, ds []downloadFileArgs) error,
-) command.Action {
-	return func(cmdCtx command.Context) error {
+	f func(cmdCtx wargcore.Context, ds []downloadFileArgs) error,
+) wargcore.Action {
+	return func(cmdCtx wargcore.Context) error {
 		urls := cmdCtx.Flags["--bibliocommons-feed-url"].([]string)
 		codes := cmdCtx.Flags["--bibliocommons-feed-code"].([]string)
 
@@ -214,13 +214,14 @@ func main() {
 			section.CommandMap(warg.VersionCommandMap()),
 		),
 		warg.ConfigFlag(
-			"--config",
-			[]scalar.ScalarOpt[path.Path]{
-				scalar.Default(path.New("toddlerevents.yaml")),
-			},
 			yamlreader.New,
-			"Config filepath",
-			flag.Alias("-c"),
+			wargcore.FlagMap{
+				"--config": flag.New(
+					"Config filepath",
+					scalar.Path(scalar.Default(path.New("toddlerevents.yaml"))),
+					flag.Alias("-c"),
+				),
+			},
 		),
 		warg.GlobalFlagMap(warg.ColorFlagMap()),
 		warg.NewGlobalFlag(
