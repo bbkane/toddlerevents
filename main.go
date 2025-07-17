@@ -102,7 +102,7 @@ func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, 
 				},
 			)
 			if err != nil {
-				return nil, fmt.Errorf("Invalid filepathTemplate: %s: %w", args.filepathTemplate, err)
+				return nil, fmt.Errorf("invalid filepathTemplate: %s: %w", args.filepathTemplate, err)
 			}
 			ret = append(ret, downloadFileArgs{
 				url:      u,
@@ -165,7 +165,7 @@ func withDownloadFileArgs(
 		urls := cmdCtx.Flags["--bibliocommons-feed-url"].([]string)
 		codes := cmdCtx.Flags["--bibliocommons-feed-code"].([]string)
 
-		if !(len(urls) == len(codes)) {
+		if len(urls) != len(codes) {
 			slog.Error(
 				"The following lengths should be equal",
 				"--bibliocommons-feed-url", len(urls),

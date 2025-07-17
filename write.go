@@ -60,7 +60,7 @@ func parseTime(bc map[string][]ext.Extension, key string) (time.Time, error) {
 	date := startDateList[0].Value
 	sd, err := time.Parse("2006-01-02T15:04", date)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Could not parse %#v: %#v: %w", key, date, err)
+		return time.Time{}, fmt.Errorf("could not parse %#v: %#v: %w", key, date, err)
 	}
 	return sd, nil
 }
@@ -78,7 +78,7 @@ func NewEvent(item *gofeed.Item) Event {
 	}
 	bc, exists := item.Extensions["bc"]
 	if !exists {
-		event.ParseErrors = append(event.ParseErrors, errors.New("No \"bc\" extension"))
+		event.ParseErrors = append(event.ParseErrors, errors.New("no \"bc\" extension"))
 		// everything else relies on "bc" extension, so go ahead and return early if we can't find it
 		return event
 	}
@@ -91,7 +91,7 @@ func NewEvent(item *gofeed.Item) Event {
 
 	endTimeLocal, err := parseTime(bc, "end_date_local")
 	if err != nil {
-		event.ParseErrors = append(event.ParseErrors, fmt.Errorf("Could not parse end_date: %w", err))
+		event.ParseErrors = append(event.ParseErrors, fmt.Errorf("could not parse end_date: %w", err))
 	}
 	event.EndTimeLocal = endTimeLocal
 
