@@ -16,6 +16,9 @@ brews:
     description: Write Bay Area toddler library events to a README.md
     directory: Formula
     homepage: https://github.com/bbkane/toddlerevents
+    install: |
+      bin.install "toddlerevents"
+      generate_completions_from_executable(bin/"toddlerevents", "completion", shells: [:zsh])
     repository:
       name: homebrew-tap
       owner: bbkane
@@ -51,3 +54,4 @@ scoops:
       name: scoop-bucket
       owner: bbkane
       token: '{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}'
+version: 2
