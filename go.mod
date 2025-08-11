@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mmcdole/gofeed v1.3.0
-	go.bbkane.com/warg v0.0.33
+	go.bbkane.com/warg v0.0.34
 )
 
 require (
