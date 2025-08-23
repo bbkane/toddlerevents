@@ -7,19 +7,18 @@ import (
 	"net/http"
 	"os"
 
-	"go.bbkane.com/warg/command"
-	"go.bbkane.com/warg/wargcore"
+	"go.bbkane.com/warg"
 )
 
-func downloadCmd() wargcore.Command {
-	return command.New(
+func downloadCmd() warg.Cmd {
+	return warg.NewCmd(
 		"Download RSS feeds",
 		withInitGlobalLogger(withDownloadFileArgs(downloadRun)),
-		command.FlagMap(bibliocommonFlags()),
+		warg.CmdFlagMap(bibliocommonFlags()),
 	)
 }
 
-func downloadRun(cmdCtx wargcore.Context, ds []downloadFileArgs) error {
+func downloadRun(cmdCtx warg.CmdContext, ds []downloadFileArgs) error {
 	for _, d := range ds {
 		err := downloadFile(d)
 		if err != nil {

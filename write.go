@@ -13,11 +13,9 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
 	ext "github.com/mmcdole/gofeed/extensions"
-	"go.bbkane.com/warg/command"
-	"go.bbkane.com/warg/flag"
+	"go.bbkane.com/warg"
 	"go.bbkane.com/warg/path"
 	"go.bbkane.com/warg/value/scalar"
-	"go.bbkane.com/warg/wargcore"
 )
 
 type Event struct {
@@ -168,25 +166,25 @@ func generateMarkdown(w io.Writer, events []Event) {
 	}
 }
 
-func writeCmd() wargcore.Command {
-	return command.New(
+func writeCmd() warg.Cmd {
+	return warg.NewCmd(
 		"Write markdown file",
 		withInitGlobalLogger(withDownloadFileArgs(writeRun)),
-		command.FlagMap(bibliocommonFlags()),
-		command.NewFlag(
+		warg.CmdFlagMap(bibliocommonFlags()),
+		warg.NewCmdFlag(
 			"--readme-path",
 			"Path to output README",
 			scalar.Path(
 				scalar.Default(path.New("tmp.md")),
 			),
-			flag.ConfigPath("write.readme_path"),
-			flag.EnvVars("toddlerevents_README_PATH"),
-			flag.Required(),
+			warg.ConfigPath("write.readme_path"),
+			warg.EnvVars("toddlerevents_README_PATH"),
+			warg.Required(),
 		),
 	)
 }
 
-func writeRun(cmdCxt wargcore.Context, ds []downloadFileArgs) error {
+func writeRun(cmdCxt warg.CmdContext, ds []downloadFileArgs) error {
 	readmePath := cmdCxt.Flags["--readme-path"].(path.Path).MustExpand()
 
 	events := []Event{}

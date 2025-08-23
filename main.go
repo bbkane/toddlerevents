@@ -13,18 +13,15 @@ import (
 
 	"go.bbkane.com/warg"
 	"go.bbkane.com/warg/config/yamlreader"
-	"go.bbkane.com/warg/flag"
 	"go.bbkane.com/warg/path"
-	"go.bbkane.com/warg/section"
 	"go.bbkane.com/warg/value/scalar"
 	"go.bbkane.com/warg/value/slice"
-	"go.bbkane.com/warg/wargcore"
 )
 
 var version string
 
-func withInitGlobalLogger(f func(cmdCtx wargcore.Context) error) wargcore.Action {
-	return func(cmdCtx wargcore.Context) error {
+func withInitGlobalLogger(f func(cmdCtx warg.CmdContext) error) warg.Action {
+	return func(cmdCtx warg.CmdContext) error {
 		logLevel := cmdCtx.Flags["--log-level"].(string)
 		slogLevel := map[string]slog.Level{
 			"DEBUG": slog.LevelDebug,
@@ -117,51 +114,51 @@ func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, 
 	return ret, nil
 }
 
-func bibliocommonFlags() wargcore.FlagMap {
-	return wargcore.FlagMap{
-		"--bibliocommons-feed-url": flag.New(
+func bibliocommonFlags() warg.FlagMap {
+	return warg.FlagMap{
+		"--bibliocommons-feed-url": warg.NewFlag(
 			"Feed URL",
 			slice.String(),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.feeds[].url"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.feeds[].url"),
 		),
-		"--bibliocommons-feed-code": flag.New(
+		"--bibliocommons-feed-code": warg.NewFlag(
 			"Unique Code for a feed",
 			slice.String(),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.feeds[].code"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.feeds[].code"),
 		),
-		"--bibliocommons-pages": flag.New(
+		"--bibliocommons-pages": warg.NewFlag(
 			"Number of feed pages to download",
 			scalar.Int(scalar.Default(5)),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.pages"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.pages"),
 		),
-		"--bibliocommons-days": flag.New(
+		"--bibliocommons-days": warg.NewFlag(
 			"Number of days info to download",
 			scalar.Int(scalar.Default(8)),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.days"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.days"),
 		),
-		"--bibliocommons-start-date": flag.New(
+		"--bibliocommons-start-date": warg.NewFlag(
 			"Date to start downloading",
 			scalar.String(scalar.Default("today")),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.date"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.date"),
 		),
-		"--bibliocommons-filepath-template": flag.New(
+		"--bibliocommons-filepath-template": warg.NewFlag(
 			"Filepath template to save downloaded files to. `Code` is the string for each URL. `Number` is 1 to the number of pates",
 			scalar.String(scalar.Default("tmp_rss_{{ .Code }}_{{ .Number }}.rss")),
-			flag.Required(),
-			flag.ConfigPath("bibliocommons.filepath_template"),
+			warg.Required(),
+			warg.ConfigPath("bibliocommons.filepath_template"),
 		),
 	}
 }
 
 func withDownloadFileArgs(
-	f func(cmdCtx wargcore.Context, ds []downloadFileArgs) error,
-) wargcore.Action {
-	return func(cmdCtx wargcore.Context) error {
+	f func(cmdCtx warg.CmdContext, ds []downloadFileArgs) error,
+) warg.Action {
+	return func(cmdCtx warg.CmdContext) error {
 		urls := cmdCtx.Flags["--bibliocommons-feed-url"].([]string)
 		codes := cmdCtx.Flags["--bibliocommons-feed-code"].([]string)
 
@@ -203,27 +200,25 @@ func withDownloadFileArgs(
 	}
 }
 
-func main() {
+func buildApp() warg.App {
 	app := warg.New(
 		"toddlerevents",
 		version,
-		section.New(
+		warg.NewSection(
 			"Collate toddler events to take my kid to",
-			section.Command("download", downloadCmd()),
-			section.Command("write", writeCmd()),
-			section.CommandMap(warg.VersionCommandMap()),
+			warg.SubCmd("download", downloadCmd()),
+			warg.SubCmd("write", writeCmd()),
 		),
 		warg.ConfigFlag(
 			yamlreader.New,
-			wargcore.FlagMap{
-				"--config": flag.New(
+			warg.FlagMap{
+				"--config": warg.NewFlag(
 					"Config filepath",
 					scalar.Path(scalar.Default(path.New("toddlerevents.yaml"))),
-					flag.Alias("-c"),
+					warg.Alias("-c"),
 				),
 			},
 		),
-		warg.GlobalFlagMap(warg.ColorFlagMap()),
 		warg.NewGlobalFlag(
 			"--log-level",
 			"log level",
@@ -231,10 +226,15 @@ func main() {
 				scalar.Choices("DEBUG", "INFO", "WARN", "ERROR"),
 				scalar.Default("DEBUG"),
 			),
-			flag.ConfigPath("log.level"),
-			flag.Required(),
-			flag.EnvVars("toddlerevents_LOG_LEVEL"),
+			warg.ConfigPath("log.level"),
+			warg.Required(),
+			warg.EnvVars("toddlerevents_LOG_LEVEL"),
 		),
 	)
+	return app
+}
+
+func main() {
+	app := buildApp()
 	app.MustRun()
 }
