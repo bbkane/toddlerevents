@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mmcdole/gofeed v1.3.0
-	go.bbkane.com/warg v0.0.36
+	go.bbkane.com/warg v0.0.37
 )
 
 require (
@@ -22,7 +22,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.bbkane.com/gocolor v0.0.5 // indirect
 	golang.org/x/net v0.41.0 // indirect
