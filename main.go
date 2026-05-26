@@ -116,18 +116,26 @@ func buildDownloadFileArgs(args buildDownloadFileArgsArgs) ([]downloadFileArgs, 
 
 func bibliocommonFlags() warg.FlagMap {
 	return warg.FlagMap{
-		"--bibliocommons-feed-url": warg.NewFlag(
-			"Feed URL",
-			slice.String(),
+		"--bibliocommons-feeds": warg.NewFlag(
+			"Feed URLs and their unique codes. Format: 'URL,Code'",
+			slice.New(
+				bibliocommonsTypeInfo(),
+			),
+			warg.ConfigPath("bibliocommons.feeds"),
 			warg.Required(),
-			warg.ConfigPath("bibliocommons.feeds[].url"),
 		),
-		"--bibliocommons-feed-code": warg.NewFlag(
-			"Unique Code for a feed",
-			slice.String(),
-			warg.Required(),
-			warg.ConfigPath("bibliocommons.feeds[].code"),
-		),
+		// "--bibliocommons-feed-url": warg.NewFlag(
+		// 	"Feed URL",
+		// 	slice.String(),
+		// 	warg.Required(),
+		// 	warg.ConfigPath("bibliocommons.feeds[].url"),
+		// ),
+		// "--bibliocommons-feed-code": warg.NewFlag(
+		// 	"Unique Code for a feed",
+		// 	slice.String(),
+		// 	warg.Required(),
+		// 	warg.ConfigPath("bibliocommons.feeds[].code"),
+		// ),
 		"--bibliocommons-pages": warg.NewFlag(
 			"Number of feed pages to download",
 			scalar.Int(scalar.Default(5)),
@@ -159,17 +167,16 @@ func withDownloadFileArgs(
 	f func(cmdCtx warg.CmdContext, ds []downloadFileArgs) error,
 ) warg.Action {
 	return func(cmdCtx warg.CmdContext) error {
-		urls := cmdCtx.Flags["--bibliocommons-feed-url"].([]string)
-		codes := cmdCtx.Flags["--bibliocommons-feed-code"].([]string)
 
-		if len(urls) != len(codes) {
-			slog.Error(
-				"The following lengths should be equal",
-				"--bibliocommons-feed-url", len(urls),
-				"--bibliocommons-feed-code", len(codes),
-			)
-			return errors.New("non-matching flag lengths")
+		// hack to turn new flag format into old array format
+		feeds := cmdCtx.Flags["--bibliocommons-feeds"].([]bibliocommonsFeedArgs)
+		urls := make([]string, len(feeds))
+		codes := make([]string, len(feeds))
+		for i, feed := range feeds {
+			urls[i] = feed.URL
+			codes[i] = feed.Code
 		}
+
 		pages := cmdCtx.Flags["--bibliocommons-pages"].(int)
 		startDate := cmdCtx.Flags["--bibliocommons-start-date"].(string)
 		filepathTemplate := cmdCtx.Flags["--bibliocommons-filepath-template"].(string)
