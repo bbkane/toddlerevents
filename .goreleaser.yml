@@ -6,24 +6,6 @@ before:
     - go mod download
     # you may remove this if you don't need go generate
     # - go generate ./...
-# https://goreleaser.com/customization/homebrew/
-brews:
-  - caveats: |
-      Unfortunately, Apple wants to charge developers $100/year to distribute
-      their apps without a big scary "... the developer cannot be verified"
-      warning. I'm not willing to pay that to give away free apps.
-      See https://www.macworld.com/article/3140183/how-to-install-an-app-in-macos-sierra-thats-not-signed-by-a-developer.html to work around that
-    description: Write Bay Area toddler library events to a README.md
-    directory: Formula
-    homepage: https://github.com/bbkane/toddlerevents
-    install: |
-      bin.install "toddlerevents"
-      generate_completions_from_executable(bin/"toddlerevents", "completion", shells: [:bash, :fish, :zsh])
-    repository:
-      name: homebrew-tap
-      owner: bbkane
-      # Optionally a token can be provided, if it differs from the token provided to GoReleaser
-      token: '{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}'
 builds:
   - env:
       - CGO_ENABLED=0
@@ -46,6 +28,34 @@ changelog:
   sort: asc
 checksum:
   name_template: checksums.txt
+# https://goreleaser.com/customization/publish/homebrew_casks/
+homebrew_casks:
+  - binaries:
+      - toddlerevents
+    caveats: |
+      Unfortunately, Apple wants to charge developers $100/year to distribute
+      their apps without a big scary "... the developer cannot be verified"
+      warning. I'm not willing to pay that to give away free apps.
+      See https://www.macworld.com/article/3140183/how-to-install-an-app-in-macos-sierra-thats-not-signed-by-a-developer.html to work around that
+    description: Write Bay Area toddler library events to a README.md
+    generate_completions_from_executable:
+      args:
+        - completion
+      executable: toddlerevents
+      shells:
+        - bash
+        - fish
+        - zsh
+    homepage: https://github.com/bbkane/toddlerevents
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/toddlerevents"] if OS.mac?
+    repository:
+      name: homebrew-tap
+      owner: bbkane
+      # Optionally a token can be provided, if it differs from the token provided to GoReleaser
+      token: '{{ .Env.KEY_GITHUB_GORELEASER_TO_HOMEBREW_TAP }}'
 scoops:
   - description: Write Bay Area toddler library events to a README.md
     homepage: https://github.com/bbkane/toddlerevents

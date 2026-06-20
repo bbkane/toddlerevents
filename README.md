@@ -29,7 +29,7 @@ toddlerevents download|write --config toddlerevents.yaml
 
 ## Install
 
-- [Homebrew](https://brew.sh/): `brew install bbkane/tap/toddlerevents`
+- [Homebrew](https://brew.sh/): `brew install --cask bbkane/tap/toddlerevents`
 - [Scoop](https://scoop.sh/):
 
 ```
