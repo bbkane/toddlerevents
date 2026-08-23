@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/mmcdole/gofeed v1.4.1
+	github.com/mmcdole/gofeed v1.4.2
 	go.bbkane.com/warg v0.40.3
 )
 
